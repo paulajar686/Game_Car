@@ -4,6 +4,7 @@ import random
 import os
 
 pygame.init()
+pygame.mixer.init()
 
 def show_start_menu(screen):
     font_title = pygame.font.Font(None, 60)
@@ -73,6 +74,35 @@ def get_username(screen):
                     else:
                         return usuarios[selected]
 
+def select_game_duration(screen):
+    font = pygame.font.Font(None, 36)
+    options = [("30 segundos", 30), ("60 segundos", 60), ("90 segundos", 90), ("Infinito", None)]
+    selected = 0
+
+    while True:
+        screen.fill((20, 20, 20))
+        title = pygame.font.Font(None, 40).render("Selecciona duración del juego", True, (255, 255, 255))
+        screen.blit(title, (width // 2 - title.get_width() // 2, 50))
+
+        for i, (label, _) in enumerate(options):
+            color = (255, 255, 255) if i != selected else (0, 255, 0)
+            text = font.render(label, True, color)
+            screen.blit(text, (width // 2 - text.get_width() // 2, 120 + i * 40))
+
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                exit()
+            elif event.type == KEYDOWN:
+                if event.key == K_DOWN:
+                    selected = (selected + 1) % len(options)
+                elif event.key == K_UP:
+                    selected = (selected - 1) % len(options)
+                elif event.key == K_RETURN:
+                    return options[selected][1]  # devuelve los segundos o None
+
 def create_new_user(screen):
     font = pygame.font.Font(None, 36)
     input_box = pygame.Rect(100, 300, 300, 40)
@@ -138,6 +168,10 @@ screen_size = (width, height)
 screen = pygame.display.set_mode(screen_size)
 pygame.display.set_caption('Car Game')
 
+pygame.mixer.music.load('music/theme.ogg')
+pygame.mixer.music.set_volume(0.5)  # volumen entre 0.0 y 1.0
+pygame.mixer.music.play(-1)  # -1 para reproducir en bucle
+
 # colors
 gray = (100, 100, 100)
 green = (76, 208, 56)
@@ -180,6 +214,7 @@ level = 1
 level_timer = 0
 powerup_active = None
 powerup_timer = 0
+timed_out = False
 
 class Vehicle(pygame.sprite.Sprite):
     
@@ -235,6 +270,8 @@ crash = pygame.image.load('images/crash.png')
 crash_rect = crash.get_rect()
 show_start_menu(screen)
 username = get_username(screen)
+selected_duration = select_game_duration(screen)
+start_time = pygame.time.get_ticks()  # guardar el tiempo inicial
 
 # game loop
 running = True
@@ -360,6 +397,33 @@ while running:
     level_text = font.render(f'Nivel: {level}', True, white)
     screen.blit(score_text, (20, 20))
     screen.blit(level_text, (20, 50))
+    # Mostrar cuenta regresiva si hay duración limitada
+    if selected_duration is not None:
+        elapsed = (pygame.time.get_ticks() - start_time) / 1000
+        remaining = max(0, int(selected_duration - elapsed))
+
+        # Cambiar color si quedan 10 segundos o menos
+        if remaining <= 10:
+            timer_color = (255, 0, 0) # Rojo
+        else:
+            timer_color = white
+
+        timer_text = font.render(f'Tiempo: {remaining}s', True, white)
+        screen.blit(timer_text, (width - 150, 20))
+
+    # Barra de progreso hacia el próximo nivel
+    progress = score % 10  # progreso entre niveles (0–9)
+    bar_width = int((progress / 10) * 200)  # ancho proporcional
+    bar_x = width // 2 - 100
+    bar_y = 80
+
+    # Fondo de la barra
+    pygame.draw.rect(screen, (80, 80, 80), (bar_x, bar_y, 200, 20), border_radius=5)
+    # Barra llena
+    pygame.draw.rect(screen, (0, 200, 0), (bar_x, bar_y, bar_width, 20), border_radius=5)
+    # Borde
+    pygame.draw.rect(screen, (255, 255, 255), (bar_x, bar_y, 200, 20), 2, border_radius=5)
+
 
     # Mostrar texto de subida de nivel por 2 segundos
     if level_timer and pygame.time.get_ticks() - level_timer < 2000:
@@ -381,7 +445,10 @@ while running:
         pygame.draw.rect(screen, red, (0, 50, width, 100))
         
         font = pygame.font.Font(pygame.font.get_default_font(), 16)
-        text = font.render('Game over. Play again? (Enter Y or N)', True, white)
+        if 'timed_out' in locals() and timed_out:
+            text = font.render('¡Tiempo agotado! ¿Jugar de nuevo? (Y/N)', True, white)
+        else:
+            text = font.render('Game over. Play again? (Y/N)', True, white)
 
         # Guardar el puntaje en archivo
         with open('scores.txt', 'a') as f:
@@ -407,6 +474,13 @@ while running:
             speed -= 3
             powerup_active = None
 
+    # Verificar si el tiempo se agotó
+    if selected_duration is not None and not gameover:
+        elapsed = (pygame.time.get_ticks() - start_time) / 1000  # en segundos
+        if elapsed >= selected_duration:
+            gameover = True
+            crash_rect.center = player.rect.center  # posiciona algo
+            timed_out = True  # nuevo estado
 
     pygame.display.update()
 
@@ -432,12 +506,15 @@ while running:
                     level_timer = 0
                     powerup_active = None
                     powerup_timer = 0
+                    timed_out = False
+                    start_time = pygame.time.get_ticks()
                     vehicle_group.empty()
                     powerup_group.empty()
-                    player.rect.center = [player_x, player_y]
+                    player.rect.center = [player_x, player_y] 
+
                 elif event.key == K_n:
                     # exit the loops
                     gameover = False
                     running = False
-
+pygame.mixer.music.stop()
 pygame.quit()
