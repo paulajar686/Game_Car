@@ -20,7 +20,6 @@
 - Sistema de **niveles dinámico**: el nivel sube cada 10 puntos, aumentando la dificultad.
 - **Power-ups**:
   - **Turbo**: aumenta la velocidad temporalmente.
-  - **Inmunidad**: protege contra colisiones por un tiempo limitado.
 - Sistema de **usuarios**:
   - Puedes seleccionar un usuario registrado o crear uno nuevo.
   - El nombre y la puntuación se guardan automáticamente.
